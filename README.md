@@ -86,3 +86,49 @@ print(response['Answer'])
 - Contextual question answering
 - Source document tracking
 - Robust error handling
+
+
+# Database Query Agent
+
+## Overview
+A sophisticated Python-based agent for natural language database querying using LangChain and OpenAI.
+
+## Features
+- Natural language to SQL query generation
+- Error-robust database interaction
+- Conversational result interpretation
+- Comprehensive logging and error handling
+
+## Prerequisites
+- Python 3.8+
+- PostgreSQL database
+- OpenAI API key
+- Required Python packages (see `requirements.txt`)
+
+## Environment Variables
+Configure these environment variables:
+- `DB_USER`: Database username
+- `DB_PASS`: Database password
+- `DB_HOST`: Database host
+- `DB_NAME`: Database name
+- `OPENAI_API_KEY`: OpenAI API key
+
+## Installation
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+```python
+
+response = ask_agent("How many questions are in the database?")
+print(response)
+```
+
+## Logging
+Logs are configured with timestamp, log level, and message details.
+
+## Error Handling
+- Validates configuration parameters
+- Provides user-friendly error messages
+- Logs errors for debugging
