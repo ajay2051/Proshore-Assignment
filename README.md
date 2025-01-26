@@ -1,4 +1,4 @@
-# Document Processing and RAG System
+# 01 Document Processing and RAG System
 
 ## Overview
 A sophisticated document processing and retrieval system that supports multiple file types and provides intelligent question-answering capabilities.
@@ -88,7 +88,7 @@ print(response['Answer'])
 - Robust error handling
 
 
-# Database Query Agent
+# 02 Database Query Agent
 
 ## Overview
 A sophisticated Python-based agent for natural language database querying using LangChain and OpenAI.
@@ -132,3 +132,102 @@ Logs are configured with timestamp, log level, and message details.
 - Validates configuration parameters
 - Provides user-friendly error messages
 - Logs errors for debugging
+
+
+# 03 Real-Time Object Detection Script
+
+## Overview
+Python-based object detection script using TensorFlow Lite and OpenCV, supporting Raspberry Pi and webcam integration.
+
+## Features
+- Real-time object detection
+- Multi-camera support
+- FPS tracking
+- Configurable detection parameters
+
+## Prerequisites
+- Python 3.7+
+- OpenCV
+- Picamera2
+- TensorFlow Lite
+- Raspberry Pi or Linux system
+
+## Installation
+```bash
+pip install opencv-python picamera2 tflite-support
+```
+
+## Configuration
+Adjust parameters in script:
+- Model path
+- Camera settings
+- Detection thresholds
+
+## Usage
+```bash
+python 03_object_detection.py
+```
+Press 'q' to quit
+
+## Supported Cameras
+- Raspberry Pi Camera
+- USB Webcam
+
+## Performance
+- Configurable threads
+- Adaptive FPS calculation
+- Low-latency detection
+
+## Troubleshooting
+- Check camera connections
+- Verify model file path
+- Ensure required libraries installed
+
+
+# 04 Text Generation Model
+
+## Overview
+Neural network for predicting next words and generating text using LSTM
+
+## Features
+- Word prediction
+- Text generation
+- Uses news dataset
+- Supports creativity parameter
+
+## Requirements
+- Python 3.8+
+- TensorFlow
+- Keras
+- NLTK
+- Pandas
+- NumPy
+
+## Installation
+```bash
+pip install tensorflow nltk pandas numpy
+```
+
+## Usage
+```python
+# Predict next words
+predict_next_word("trump", 5)
+
+# Generate text
+generate_text("trump", 100, creativity=3)
+```
+
+## Model Details
+- Input: 10-word sequences
+- Architecture: LSTM + Dense layers
+- Trained on news text
+- Saves model as "predict_next_word.h5"
+
+## Parameters
+- `input_text`: Starting text
+- `text_length`: Generated text length
+- `creativity`: Word selection randomness
+
+## Limitations
+- Requires significant computational resources
+- Text quality depends on training data
