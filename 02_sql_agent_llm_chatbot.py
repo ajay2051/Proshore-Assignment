@@ -1,8 +1,7 @@
-
-import logging
 import os
 from operator import itemgetter
 
+from dotenv import load_dotenv
 from langchain_community.tools import QuerySQLDatabaseTool
 from langchain_community.utilities import SQLDatabase
 from langchain_core.output_parsers import StrOutputParser
@@ -10,49 +9,32 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import ChatOpenAI
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Load environment variables
+load_dotenv()
 
+# Database configuration
+DB_USER = os.environ.get("DB_USER")
+DB_PASSWORD = os.environ.get("DB_PASS")
+DB_HOST = os.environ.get("DB_HOST")
+DB_NAME = os.environ.get("DB_NAME")
 
-def get_db_connection():
-    """Safely retrieve database connection parameters"""
-    try:
-        DB_USER = os.getenv("DB_USER")
-        DB_PASSWORD = os.getenv("DB_PASS")
-        DB_HOST = os.getenv("DB_HOST")
-        DB_NAME = os.getenv("DB_NAME")
+# Create database connection URI
+connection_uri = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+db = SQLDatabase.from_uri(connection_uri)
 
-        if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_NAME]):
-            raise ValueError("Missing database configuration environment variables")
+# LLM configuration
+LLM_CONFIG = {
+    "model": "gpt-4o-mini",
+    "api_key": os.getenv("OPENAI_API_KEY"),
+    "temperature": 0.7,  # Slightly higher temperature for more creative responses
+    "max_tokens": 2000
+}
+llm = ChatOpenAI(**LLM_CONFIG)
 
-        connection_uri = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
-        return SQLDatabase.from_uri(connection_uri)
-    except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        raise
-
-
-def initialize_llm():
-    """Initialize and validate LLM configuration"""
-    try:
-        LLM_CONFIG = {
-            "model": "gpt-4o",
-            "api_key": os.getenv("OPENAI_API_KEY"),
-            "temperature": 0.7,
-            "max_tokens": 2000
-        }
-
-        if not LLM_CONFIG["api_key"]:
-            raise ValueError("Missing OpenAI API key")
-
-        return ChatOpenAI(**LLM_CONFIG)
-    except Exception as e:
-        logger.error(f"LLM initialization error: {e}")
-        raise
-
-
+# Define the database schema information
 DATABASE_SCHEMA = """
 Here is the schema of the database:
+
 
 1. **question**: Question
 - Columns
@@ -77,79 +59,114 @@ Here is the schema of the database:
     reviewers_id (Foreign Key → user_auth_authuser.id, nullable, blank)
     category_id (Foreign Key → question_category.id, nullable)
     question_group_id (Foreign Key → question_group.id, nullable, blank)
+    
+2. **user**: 
+- Columns 
+    id (Primary Key, AutoField)
+    first_name (CharField, max length: 50, nullable, blank)
+    last_name (CharField, max length: 50, nullable, blank)
+    email (EmailField, unique)
+    phone_number (CharField, max length: 20, nullable, blank)
+    birth_date (DateField, nullable, blank)
+    address (CharField, max length: 150, nullable, blank)
+    role (CharField, choices, default value: GENERAL)
+    is_staff (BooleanField, default value: False)
+    is_superuser (BooleanField, default value: False)
+    is_active (BooleanField, default value: True)
+    user_organization_id (Foreign Key → organization.id, nullable, blank, on delete: SET_NULL)
+    membership (CharField, choices, default value: BASIC)
+    tokens (PositiveIntegerField, default value: 0)
+
 """
 
+# Define the system role for the AI
 AGENT_LLM_SYSTEM_ROLE = f"""
-You are a friendly and knowledgeable AI assistant. 
-Your task is to help users query a database and provide clear, concise, and conversational answers based on the results."""
+You are a friendly and knowledgeable AI assistant. Your task is to help users query a database and provide clear, concise, and conversational answers based on the results.
 
-def create_query_chain(db, llm):
-    """Create the query processing chain with error handling"""
-    try:
-        execute_query = QuerySQLDatabaseTool(db=db)
+Here is the schema of the database:
+{DATABASE_SCHEMA}
 
-        sql_prompt = PromptTemplate.from_template(
-            """
-            You are a SQL expert. Given the following database schema:
+Rules:
+1. Always provide a human-readable response.
+2. If the query result is a number or a list, explain it in a conversational way.
+3. If the query result is empty, let the user know politely.
+4. If there's an error, explain it in simple terms and suggest what the user can do next.
 
-            {schema}
+Example:
+- User: "How many products are there?"
+- AI: "There are 150 products in the warehouse. Let me know if you'd like more details!"
+"""
 
-            Generate a valid SQL query to answer the following question:
-            {question}
+# Initialize tools and chains
 
-            Return only the SQL query, nothing else.
-            """
-        )
+execute_query = QuerySQLDatabaseTool(db=db) # Tool to execute SQL queries
 
-        write_query = (
-                RunnablePassthrough.assign(schema=lambda x: DATABASE_SCHEMA)
-                | sql_prompt
-                | llm
-                | StrOutputParser()
-                | (lambda x: x.strip().strip("```sql").strip("```"))
-        )
+# Define the prompt for SQL generation
+sql_prompt = PromptTemplate.from_template(
+    """
+    You are a SQL expert. Given the following database schema:
 
-        answer_prompt = PromptTemplate.from_template(
-            """
-            You are a friendly AI assistant. Below is the result of a database query:
+    {schema}
 
-            Query Result: {result}
+    Generate a valid SQL query to answer the following question:
+    {question}
 
-            Based on this result, provide a clear and conversational answer to the user's question: {question}
-            """
-        )
+    Return only the SQL query, nothing else.
+    """
+)
 
-        answer = answer_prompt | llm | StrOutputParser()
+# Chain to generate SQL queries
+write_query = (
+    RunnablePassthrough.assign(schema=lambda x: DATABASE_SCHEMA)
+    | sql_prompt
+    | llm
+    | StrOutputParser()
+    | (lambda x: x.strip().strip("```sql").strip("```"))  # Strip markdown and extra whitespace
+)
 
-        return RunnablePassthrough.assign(query=write_query).assign(result=itemgetter("query") | execute_query) | answer
-    except Exception as e:
-        logger.error(f"Chain creation error: {e}")
-        raise
+# Define the answer prompt
+answer_prompt = PromptTemplate.from_template(
+    """
+    You are a friendly AI assistant. Below is the result of a database query:
 
+    Query Result: {result}
 
+    Based on this result, provide a clear and conversational answer to the user's question: {question}
+    """
+)
+
+# Define the answer chain
+answer = answer_prompt | llm | StrOutputParser()
+
+# Define the full chain
+chain = (
+    RunnablePassthrough.assign(query=write_query)  # Generate SQL query
+    .assign(result=itemgetter("query") | execute_query)  # Execute SQL query
+    | answer  # Provide a conversational answer
+)
+
+# Function to interact with the agent
 def ask_agent(question: str) -> str:
-    """Main function to process user questions with comprehensive error handling"""
     try:
-        db = get_db_connection()
-        llm = initialize_llm()
+        # Generate the SQL query
+        query = write_query.invoke({"question": question}).strip()
+        print(f"Generated Query: {query}")  # Debugging: log the query
 
-        chain = create_query_chain(db, llm)
-
-        result = chain.invoke({"question": question})
-        logger.info(f"Successfully processed query for: {question}")
-        return result
-    except ValueError as ve:
-        logger.error(f"Configuration error: {ve}")
-        return f"Configuration error: {ve}. Please check your environment setup."
+        # Execute the query
+        result = execute_query.invoke(query)
+        return answer.invoke({"question": question, "result": result})
     except Exception as e:
-        logger.error(f"Unexpected error processing query: {e}")
-        return f"Sorry, an unexpected error occurred: {e}. Please try again or contact support."
+        return f"Query error: {str(e)}. Please verify your question and database schema."
 
 
+# Test the agent
 if __name__ == "__main__":
-    try:
-        test_question = "How many questions are in the database?"
-        response = ask_agent(test_question)
-        print(response)
-    except Exception as e:
-        print(f"Test execution failed: {e}")
+    # Example questions
+    test_questions = [
+        "how many users are there?",
+    ]
+
+    for question in test_questions:
+        print(f"\nQuestion: {question}")
+        response = ask_agent(question)
+        print(f"Response: {response}")
