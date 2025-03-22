@@ -401,7 +401,7 @@ def rag_response(question: str, vectorstore_type: str = "faiss") -> Dict:
 
 if __name__ == "__main__":
     try:
-        question = "tell me about python developer"
+        question = "describe about japan"
         response = rag_response(question, vectorstore_type="faiss")
         print(response)
 

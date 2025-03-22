@@ -163,7 +163,7 @@ def ask_agent(question: str) -> str:
 if __name__ == "__main__":
     # Example questions
     test_questions = [
-        "how many users are there?",
+        "how many questions are there",
     ]
 
     for question in test_questions:
